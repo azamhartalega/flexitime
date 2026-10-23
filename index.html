@@ -82,3 +82,51 @@
                 <button id="mainActionButton" onclick="handleMainAction()" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-3 rounded-xl shadow-sm transition">
                     Clock In Now
                 </button>
+                <button onclick="resetShift()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-3 rounded-xl font-medium text-sm border border-amber-200/50">
+                    <i class="fa-solid fa-power-off"></i>
+                </button>
+                <button onclick="syncDataFromCloud()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-medium text-sm">
+                    <i class="fa-solid fa-rotate"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Toggle Advanced Panels Button -->
+        <div class="flex justify-center">
+            <button onclick="toggleAdvanced()" class="text-xs font-semibold text-slate-500 bg-slate-200/60 hover:bg-slate-200 px-4 py-2 rounded-lg flex items-center gap-1.5 cursor-pointer">
+                <span id="advancedToggleText">Show Advanced Panels</span>
+                <i id="advancedToggleIcon" class="fa-solid fa-chevron-down"></i>
+            </button>
+        </div>
+
+        <!-- Advanced Panels Container -->
+        <div id="advancedPanels" class="hidden space-y-6">
+            <!-- Manual Entry / Override -->
+            <div class="bg-white p-5 rounded-xl shadow-sm space-y-4">
+                <h3 class="font-bold text-sm text-slate-700 flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-sky-600"></i> Manual Entry / Override
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 mb-1 block">Clock In Time</label>
+                        <input type="time" id="manualClockIn" class="w-full text-xs p-2.5 border border-slate-200 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 mb-1 block">Clock Out Time</label>
+                        <input type="time" id="manualClockOut" class="w-full text-xs p-2.5 border border-slate-200 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 mb-1 block">Date</label>
+                        <input type="date" id="manualDate" class="w-full text-xs p-2.5 border border-slate-200 rounded-lg">
+                    </div>
+                </div>
+                <button onclick="submitManualEntry()" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2.5 rounded-lg text-xs">
+                    Set Active Shift / Submit
+                </button>
+            </div>
+
+            <!-- Clock History Log -->
+            <div class="bg-white p-5 rounded-xl shadow-sm space-y-4">
+                <h3 class="font-bold text-sm text-slate-700 flex items-center gap-2">
+                    <i class="fa-solid fa-list text-sky-600"></i> Clock History Log
+                </h3>
