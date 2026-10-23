@@ -166,4 +166,274 @@
             if (!clockElem || !dateElem) return;
 
             var now = new Date();
-            var hours = String(now.getHours() % 12 ||
+            var hours = String(now.getHours() % 12 || 12).padStart(2, '0');
+            var minutes = String(now.getMinutes()).padStart(2, '0');
+            var seconds = String(now.getSeconds()).padStart(2, '0');
+            var ampm = now.getHours() >= 12 ? 'PM' : 'AM';
+            
+            var day = String(now.getDate()).padStart(2, '0');
+            var month = String(now.getMonth() + 1).padStart(2, '0');
+            var year = now.getFullYear();
+
+            clockElem.textContent = hours + ':' + minutes + ':' + seconds + ' ' + ampm;
+            dateElem.textContent = day + '/' + month + '/' + year;
+        }
+
+        function toggleSettings() {
+            var p = document.getElementById('settingsPanel');
+            if (p) p.classList.toggle('hidden');
+        }
+
+        function saveScriptUrl() {
+            var input = document.getElementById('scriptUrlInput');
+            if (input) {
+                webAppUrl = input.value.trim();
+                localStorage.setItem('webAppUrl', webAppUrl);
+                toggleSettings();
+                syncDataFromCloud();
+            }
+        }
+
+        function toggleAdvanced() {
+            var panel = document.getElementById('advancedPanels');
+            var text = document.getElementById('advancedToggleText');
+            var icon = document.getElementById('advancedToggleIcon');
+            if (!panel) return;
+
+            panel.classList.toggle('hidden');
+            if (panel.classList.contains('hidden')) {
+                if (text) text.textContent = 'Show Advanced Panels';
+                if (icon) icon.className = 'fa-solid fa-chevron-down';
+            } else {
+                if (text) text.textContent = 'Hide Advanced Panels';
+                if (icon) icon.className = 'fa-solid fa-chevron-up';
+            }
+        }
+
+        function formatToDDMMYYYY(dateObjStr) {
+            if (!dateObjStr) return '';
+            if (dateObjStr.indexOf('/') !== -1) return dateObjStr;
+            var parts = dateObjStr.split('-');
+            if (parts.length === 3 && parts[0].length === 4) {
+                return parts[2] + '/' + parts[1] + '/' + parts[0];
+            }
+            var d = new Date(dateObjStr);
+            if (!isNaN(d.getTime())) {
+                var day = String(d.getDate()).padStart(2, '0');
+                var month = String(d.getMonth() + 1).padStart(2, '0');
+                return day + '/' + month + '/' + d.getFullYear();
+            }
+            return dateObjStr;
+        }
+
+        function formatTime12H(timeStr) {
+            if (!timeStr || timeStr === '--') return '-- : --';
+            if (timeStr.indexOf('AM') !== -1 || timeStr.indexOf('PM') !== -1) return timeStr;
+            var parts = timeStr.split(':');
+            var hours = parseInt(parts[0], 10);
+            var ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            return String(hours).padStart(2, '0') + ':' + parts[1] + ' ' + ampm;
+        }
+
+        function parse12HToMinutes(timeStr) {
+            if (!timeStr || timeStr === '-- : --' || timeStr === '--') return null;
+            var match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+            if (!match) return null;
+            
+            var hours = parseInt(match[1], 10);
+            var minutes = parseInt(match[2], 10);
+            var ampm = match[3] ? match[3].toUpperCase() : null;
+
+            if (ampm === 'PM' && hours < 12) hours += 12;
+            if (ampm === 'AM' && hours === 12) hours = 0;
+
+            return hours * 60 + minutes;
+        }
+
+        function calculateTargetClockOut(clockInStr) {
+            var startMins = parse12HToMinutes(clockInStr);
+            if (startMins === null) return '-- : --';
+            var totalShiftMins = (reqHours * 60) + breakMins;
+            var endMins = startMins + totalShiftMins;
+            
+            var hours = Math.floor(endMins / 60) % 24;
+            var mins = endMins % 60;
+            var ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            return String(hours).padStart(2, '0') + ':' + String(mins).padStart(2, '0') + ' ' + ampm;
+        }
+
+        function calculateHoursWorked(clockInStr, clockOutStr) {
+            var startMins = parse12HToMinutes(clockInStr);
+            var endMins = parse12HToMinutes(clockOutStr);
+            if (startMins === null || endMins === null) return '--';
+            var diffMins = endMins - startMins - breakMins;
+            var hours = (diffMins / 60).toFixed(1);
+            return hours > 0 ? hours : '0';
+        }
+
+        function handleMainAction() {
+            if (!activeShift) {
+                var now = new Date();
+                var timeStr = formatTime12H(now.getHours() + ':' + now.getMinutes());
+                var dateStr = formatToDDMMYYYY(now.toISOString().split('T')[0]);
+
+                activeShift = { date: dateStr, clockIn: timeStr, clockOut: '--', status: 'In Progress' };
+                localStorage.setItem('activeShift', JSON.stringify(activeShift));
+                
+                sendPayload({ action: 'clockIn', date: dateStr, clockIn: timeStr });
+                updateUI();
+            } else {
+                var now = new Date();
+                var timeStr = formatTime12H(now.getHours() + ':' + now.getMinutes());
+                var totalWorked = calculateHoursWorked(activeShift.clockIn, timeStr);
+
+                sendPayload({ 
+                    action: 'clockOut', 
+                    date: activeShift.date, 
+                    clockOut: timeStr,
+                    totalWorked: totalWorked
+                });
+                activeShift = null;
+                localStorage.removeItem('activeShift');
+                updateUI();
+            }
+        }
+
+        function submitManualEntry() {
+            var inVal = document.getElementById('manualClockIn').value;
+            var outVal = document.getElementById('manualClockOut').value;
+            var dateVal = document.getElementById('manualDate').value;
+
+            if (!dateVal) return;
+
+            var formattedDate = formatToDDMMYYYY(dateVal);
+            var formattedIn = inVal ? formatTime12H(inVal) : '--';
+            var formattedOut = outVal ? formatTime12H(outVal) : '--';
+
+            if (inVal && !outVal) {
+                activeShift = { date: formattedDate, clockIn: formattedIn, clockOut: '--', status: 'In Progress' };
+                localStorage.setItem('activeShift', JSON.stringify(activeShift));
+                sendPayload({ action: 'clockIn', date: formattedDate, clockIn: formattedIn });
+            } else {
+                var worked = (inVal && outVal) ? calculateHoursWorked(formattedIn, formattedOut) : '--';
+                sendPayload({ action: 'clockOut', date: formattedDate, clockOut: formattedOut, totalWorked: worked });
+            }
+            updateUI();
+        }
+
+        function sendPayload(payload) {
+            if (!webAppUrl) return;
+            fetch(webAppUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            }).then(function() {
+                setTimeout(syncDataFromCloud, 1000);
+            }).catch(function(e) { console.error(e); });
+        }
+
+        function syncDataFromCloud() {
+            if (!webAppUrl) return;
+            fetch(webAppUrl)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var logs = Array.isArray(data) ? data : (data.logs || data.data || []);
+                    if (logs && logs.length > 0) {
+                        renderHistoryTable(logs);
+                    }
+                })
+                .catch(function(e) { console.error(e); });
+        }
+
+        function renderHistoryTable(rows) {
+            var tbody = document.getElementById('historyTableBody');
+            if (!tbody || !rows) return;
+            tbody.innerHTML = rows.map(function(r) {
+                return '<tr class="hover:bg-slate-50">' +
+                    '<td class="py-2.5 px-2 font-medium">' + r.date + '</td>' +
+                    '<td class="py-2.5 px-2 text-emerald-600 font-semibold">' + (r.clockIn || '--') + '</td>' +
+                    '<td class="py-2.5 px-2 text-rose-600 font-semibold">' + (r.clockOut || '--') + '</td>' +
+                    '<td class="py-2.5 px-2 font-bold">' + (r.totalWorked || '--') + '</td>' +
+                    '<td class="py-2.5 px-2 text-right">' +
+                        '<span class="px-2 py-0.5 rounded text-[10px] font-semibold ' + (r.status === 'In Progress' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700') + '">' +
+                            r.status +
+                        '</span>' +
+                    '</td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function updateUI() {
+            var statusBadge = document.getElementById('statusBadge');
+            var clockInDisplay = document.getElementById('clockInDisplay');
+            var clockOutDisplay = document.getElementById('clockOutDisplay');
+            var progressBar = document.getElementById('progressBar');
+            var progressPercent = document.getElementById('progressPercent');
+            var btn = document.getElementById('mainActionButton');
+
+            if (!statusBadge || !clockInDisplay || !clockOutDisplay) return;
+
+            if (activeShift) {
+                statusBadge.textContent = 'Shift In Progress';
+                statusBadge.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700';
+                clockInDisplay.textContent = activeShift.clockIn;
+                clockOutDisplay.textContent = calculateTargetClockOut(activeShift.clockIn);
+                if (btn) {
+                    btn.textContent = 'Clock Out Now';
+                    btn.className = 'flex-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3 rounded-xl shadow-sm transition cursor-pointer';
+                }
+
+                var startMins = parse12HToMinutes(activeShift.clockIn);
+                if (startMins !== null) {
+                    var now = new Date();
+                    var currentMins = now.getHours() * 60 + now.getMinutes();
+                    var elapsedMins = currentMins - startMins;
+                    var totalShiftMins = (reqHours * 60) + breakMins;
+
+                    var percentage = 0;
+                    if (elapsedMins > 0) {
+                        percentage = Math.min(100, Math.max(0, Math.round((elapsedMins / totalShiftMins) * 100)));
+                    }
+
+                    if (progressBar) progressBar.style.width = percentage + '%';
+                    if (progressPercent) progressPercent.textContent = percentage + '%';
+                }
+            } else {
+                statusBadge.textContent = 'Not Clocked In';
+                statusBadge.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600';
+                clockInDisplay.textContent = '-- : --';
+                clockOutDisplay.textContent = '-- : --';
+                if (progressBar) progressBar.style.width = '0%';
+                if (progressPercent) progressPercent.textContent = '0%';
+                if (btn) {
+                    btn.textContent = 'Clock In Now';
+                    btn.className = 'flex-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-3 rounded-xl shadow-sm transition cursor-pointer';
+                }
+            }
+        }
+
+        function resetShift() {
+            activeShift = null;
+            localStorage.removeItem('activeShift');
+            updateUI();
+        }
+
+        // Run initialization cleanly
+        window.onload = function() {
+            var urlInput = document.getElementById('scriptUrlInput');
+            if (urlInput) urlInput.value = webAppUrl;
+
+            var manualDateInput = document.getElementById('manualDate');
+            if (manualDateInput) manualDateInput.value = new Date().toISOString().split('T')[0];
+
+            updateLiveClock();
+            setInterval(updateLiveClock, 1000);
+            updateUI();
+            syncDataFromCloud();
+        };
+    </script>
+</body>
+</html>
