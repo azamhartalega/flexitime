@@ -1,510 +1,333 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
-<meta name="mobile-web-app-capable" content="yes">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlexiTime - Office Clock-In & Home Time Calculator</title>
-    <!-- Tailwind CSS -->
+    <title>FlexiTime</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        brand: { 50: '#f0f9ff', 100: '#e0f2fe', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1' }
-                    }
-                }
-            }
-        }
-    </script>
-    <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .font-mono-num { font-family: 'JetBrains Mono', monospace; }
-        .progress-transition { transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
-        .rotate-180 { transform: rotate(180deg); }
-    </style>
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="display" content="standalone">
 </head>
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-full flex flex-col transition-colors duration-200">
+<body class="bg-slate-100 text-slate-800 min-h-screen p-4 md:p-8">
 
-    <!-- Global Functions Script Block -->
-    <script>
-        let webAppUrl = localStorage.getItem('webAppUrl') || '';
-        let activeShift = JSON.parse(localStorage.getItem('activeShift')) || null;
-        let requiredHours = parseFloat(localStorage.getItem('requiredHours')) || 9.0;
-        let breakMinutes = parseInt(localStorage.getItem('breakMinutes')) || 60;
-
-        function toggleSyncModal(show) {
-            const modal = document.getElementById('syncModal');
-            if (modal) {
-                if (show) modal.classList.remove('hidden');
-                else modal.classList.add('hidden');
-            }
-        }
-
-        function toggleAllSections() {
-            const container = document.getElementById('advancedPanelsContainer');
-            const chevron = document.getElementById('globalChevron');
-            const btnText = document.getElementById('globalToggleText');
-
-            if (container) {
-                const isHidden = container.classList.contains('hidden');
-                if (isHidden) {
-                    container.classList.remove('hidden');
-                    if (chevron) chevron.classList.add('rotate-180');
-                    if (btnText) btnText.textContent = "Hide Advanced Panels";
-                } else {
-                    container.classList.add('hidden');
-                    if (chevron) chevron.classList.remove('rotate-180');
-                    if (btnText) btnText.textContent = "Show Advanced Panels";
-                }
-            }
-        }
-
-        function toggleTheme() {
-            document.documentElement.classList.toggle('dark');
-        }
-
-        function dismissBanner() {
-            const banner = document.getElementById('syncSetupBanner');
-            if (banner) banner.classList.add('hidden');
-        }
-    </script>
-
-    <!-- Header -->
-    <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-teal-400 flex items-center justify-center text-white shadow-md">
+    <div class="max-w-xl mx-auto space-y-6">
+        <!-- Header -->
+        <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
+            <div class="flex items-center gap-3">
+                <div class="bg-sky-500 text-white p-2.5 rounded-lg">
                     <i class="fa-solid fa-clock text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-slate-900 dark:text-white leading-tight">FlexiTime</h1>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">Flexi-Hours Tracker & Home Calculator</p>
+                    <h1 class="font-bold text-lg leading-tight">FlexiTime</h1>
+                    <p class="text-xs text-slate-500">Flexi-Hours Tracker & Home Calculator</p>
                 </div>
             </div>
-
-            <div class="flex items-center space-x-3">
-                <button id="syncBadge" onclick="toggleSyncModal(true)" class="px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 flex items-center space-x-2 hover:bg-slate-200 dark:hover:bg-slate-600 transition">
-                    <span id="syncDot" class="w-2 h-2 rounded-full bg-slate-400"></span>
-                    <span id="syncText">Local Storage</span>
-                    <i class="fa-solid fa-gear text-[11px] opacity-70"></i>
-                </button>
-
-                <div class="hidden sm:flex flex-col items-end pl-2">
-                    <div id="liveClock" class="font-mono-num font-semibold text-slate-800 dark:text-slate-200 text-sm">--:--:-- --</div>
-                    <div id="liveDate" class="text-xs text-slate-500 dark:text-slate-400">---, -- --- ----</div>
-                </div>
-
-                <button id="themeToggle" onclick="toggleTheme()" class="p-2.5 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-700/60 rounded-xl transition focus:outline-none">
-                    <i id="themeIcon" class="fa-solid fa-moon text-lg"></i>
-                </button>
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="flex-grow max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-
-        <!-- Banner for Sync Setup -->
-        <div id="syncSetupBanner" class="bg-gradient-to-r from-brand-600 to-teal-600 rounded-2xl p-4 text-white shadow-md flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center space-x-3">
-                <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
-                <div>
-                    <h3 class="font-bold text-sm">Sync with Google Sheets across Phone & Laptop</h3>
-                    <p class="text-xs opacity-90">Paste your Web App URL to store all clock-in logs directly in your Google Drive.</p>
-                </div>
-            </div>
-            <div class="flex items-center space-x-2">
-                <button onclick="toggleSyncModal(true)" class="px-4 py-2 bg-white text-brand-700 font-semibold text-xs rounded-xl hover:bg-slate-100 transition shadow-sm">
-                    Configure Google Sync
-                </button>
-                <button onclick="dismissBanner()" class="p-2 text-white/80 hover:text-white text-xs">
-                    <i class="fa-solid fa-xmark text-base"></i>
+            <div class="flex items-center gap-2">
+                <button onclick="toggleSettings()" class="bg-slate-100 text-xs text-slate-600 px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium hover:bg-slate-200">
+                    <span id="syncDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span id="syncStatus">Synced</span>
+                    <i class="fa-solid fa-gear text-slate-400"></i>
                 </button>
             </div>
         </div>
 
-        <!-- Full-Width Shift Dashboard -->
-        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/80 shadow-sm flex flex-col justify-between">
-            <div>
-                <div class="flex flex-wrap items-center justify-between gap-2 mb-6">
-                    <div class="flex items-center space-x-2">
-                        <i class="fa-solid fa-business-time text-brand-600 dark:text-brand-400"></i>
-                        <h2 class="font-bold text-lg text-slate-800 dark:text-slate-100">Shift Dashboard</h2>
-                    </div>
-                    <span id="statusBadge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                        <span id="statusDot" class="w-2 h-2 rounded-full bg-slate-400 mr-2"></span> <span id="statusText">Not Clocked In</span>
-                    </span>
+        <!-- Settings Modal/Panel -->
+        <div id="settingsPanel" class="hidden bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
+            <h3 class="font-semibold text-sm">Google Apps Script Web App URL</h3>
+            <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full text-xs p-2 border border-slate-300 rounded-lg">
+            <button onclick="saveScriptUrl()" class="bg-sky-600 text-white text-xs px-4 py-2 rounded-lg font-medium w-full">Save Connection URL</button>
+        </div>
+
+        <!-- Shift Dashboard -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="font-bold text-slate-700 flex items-center gap-2">
+                    <i class="fa-solid fa-briefcase text-sky-600"></i> Shift Dashboard
+                </h2>
+                <span id="statusBadge" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
+                    Not Clocked In
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <span class="text-xs font-medium text-slate-400 block mb-1">Clocked In Time</span>
+                    <div id="clockInDisplay" class="text-xl font-bold text-slate-700">-- : --</div>
                 </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div class="bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700 p-4 rounded-xl">
-                        <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">Clocked In Time</div>
-                        <div id="clockInDisplay" class="text-2xl sm:text-3xl font-bold font-mono-num text-slate-800 dark:text-slate-100">--:--</div>
-                    </div>
-
-                    <div class="bg-brand-50/50 dark:bg-slate-800/80 border border-brand-100 dark:border-brand-900/30 p-4 rounded-xl">
-                        <div class="text-xs text-brand-700 dark:text-brand-300 font-medium mb-1">Clock Out Time</div>
-                        <div id="targetHomeDisplay" class="text-2xl sm:text-3xl font-bold font-mono-num text-brand-600 dark:text-brand-400">--:--</div>
-                    </div>
-                </div>
-
-                <div class="space-y-2 mb-6">
-                    <div class="flex justify-between items-center text-xs text-slate-600 dark:text-slate-400 font-medium">
-                        <span>Workday Progress</span>
-                        <span id="progressPercent" class="font-mono-num">0%</span>
-                    </div>
-                    <div class="w-full bg-slate-100 dark:bg-slate-700 h-3.5 rounded-full overflow-hidden p-0.5">
-                        <div id="progressBar" class="bg-gradient-to-r from-brand-500 to-teal-400 h-full rounded-full w-0 progress-transition"></div>
-                    </div>
+                <div class="bg-sky-50/50 p-4 rounded-xl border border-sky-100">
+                    <span class="text-xs font-medium text-sky-600/70 block mb-1">Clock Out Time</span>
+                    <div id="clockOutDisplay" class="text-xl font-bold text-sky-600">-- : --</div>
                 </div>
             </div>
 
-            <div class="pt-4 border-t border-slate-100 dark:border-slate-700/60 flex flex-wrap gap-3">
-                <button id="btnMainClock" onclick="handleClockAction()" class="flex-1 py-3.5 px-4 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl shadow-lg transition flex items-center justify-center space-x-2 text-base">
-                    <span id="btnClockText">Clock In Now</span>
+            <div class="space-y-1.5">
+                <div class="flex justify-between text-xs text-slate-500 font-medium">
+                    <span>Workday Progress</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                    <div id="progressBar" class="bg-sky-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button id="mainActionButton" onclick="handleMainAction()" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-3 rounded-xl shadow-sm transition">
+                    Clock In Now
                 </button>
-                <button onclick="resetShiftState()" class="py-3 px-3 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 font-medium rounded-xl transition text-xs flex items-center gap-1" title="Reset Active Shift">
-                    <i class="fa-solid fa-power-off"></i> Reset
+                <button onclick="resetShift()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-3 rounded-xl font-medium text-sm border border-amber-200/50">
+                    <i class="fa-solid fa-power-off"></i>
                 </button>
-                <button onclick="syncDataFromCloud()" class="py-3 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium rounded-xl transition text-xs" title="Refresh">
-                    <i id="btnRefreshIcon" class="fa-solid fa-rotate"></i>
+                <button onclick="syncDataFromCloud()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-medium text-sm">
+                    <i class="fa-solid fa-rotate"></i>
                 </button>
             </div>
         </div>
 
-        <!-- Single Toggle Button for All Advanced Panels -->
-        <div class="flex justify-end">
-            <button onclick="toggleAllSections()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold rounded-xl text-xs transition flex items-center gap-2">
-                <span id="globalToggleText">Show Advanced Panels</span>
-                <i id="globalChevron" class="fa-solid fa-chevron-down text-xs transition-transform duration-300"></i>
+        <!-- Toggle Advanced Panels -->
+        <div class="flex justify-center">
+            <button onclick="toggleAdvanced()" class="text-xs font-semibold text-slate-500 bg-slate-200/60 hover:bg-slate-200 px-4 py-2 rounded-lg flex items-center gap-1.5">
+                <span id="advancedToggleText">Show Advanced Panels</span>
+                <i id="advancedToggleIcon" class="fa-solid fa-chevron-down"></i>
             </button>
         </div>
 
-        <!-- Collapsible Container Holding All Advanced Panels (Hidden by default) -->
-        <div id="advancedPanelsContainer" class="space-y-6 hidden">
-
-            <!-- Manual Entry Card -->
-            <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/80 shadow-sm">
-                <div class="flex items-center space-x-2 mb-4">
-                    <i class="fa-solid fa-pen-to-square text-brand-600 dark:text-brand-400"></i>
-                    <h3 class="font-bold text-slate-800 dark:text-slate-100">Manual Entry / Override</h3>
+        <!-- Advanced Panels Container -->
+        <div id="advancedPanels" class="hidden space-y-6">
+            <!-- Manual Entry / Override -->
+            <div class="bg-white p-5 rounded-xl shadow-sm space-y-4">
+                <h3 class="font-bold text-sm text-slate-700 flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-sky-600"></i> Manual Entry / Override
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 mb-1 block">Clock In Time</label>
+                        <input type="time" id="manualClockIn" class="w-full text-xs p-2.5 border border-slate-200 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 mb-1 block">Clock Out Time</label>
+                        <input type="time" id="manualClockOut" class="w-full text-xs p-2.5 border border-slate-200 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 mb-1 block">Date</label>
+                        <input type="date" id="manualDate" class="w-full text-xs p-2.5 border border-slate-200 rounded-lg">
+                    </div>
                 </div>
-
-                <div id="manualContent" class="pt-3 border-t border-slate-100 dark:border-slate-700 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Clock In Time</label>
-                        <input type="time" id="manualClockIn" class="w-full p-2.5 bg-slate-50 dark:bg-slate-700/50 border rounded-xl text-xs text-slate-800 dark:text-slate-100">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Clock Out Time</label>
-                        <input type="time" id="manualClockOut" class="w-full p-2.5 bg-slate-50 dark:bg-slate-700/50 border rounded-xl text-xs text-slate-800 dark:text-slate-100">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Date</label>
-                        <input type="date" id="manualDate" class="w-full p-2.5 bg-slate-50 dark:bg-slate-700/50 border rounded-xl text-xs text-slate-800 dark:text-slate-100">
-                    </div>
-                    <button onclick="submitManualEntry()" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-medium rounded-xl text-xs transition">Set Active Shift / Submit</button>
-                </div>
+                <button onclick="submitManualEntry()" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2.5 rounded-lg text-xs">
+                    Set Active Shift / Submit
+                </button>
             </div>
 
-            <!-- Grid: Settings & Logs -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                <!-- Work Shift Settings -->
-                <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/80 shadow-sm self-start">
-                    <div class="flex items-center space-x-2 mb-4">
-                        <i class="fa-solid fa-sliders text-brand-600 dark:text-brand-400"></i>
-                        <h3 class="font-bold text-slate-800 dark:text-slate-100">Work Shift Settings</h3>
-                    </div>
-
-                    <div id="settingsContent" class="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Required Work Hours</label>
-                            <input type="number" id="inputRequiredHours" value="9.0" step="0.5" min="1" class="w-full p-2.5 bg-slate-50 dark:bg-slate-700/50 border rounded-xl text-xs text-slate-800 dark:text-slate-100">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Break Duration (Mins)</label>
-                            <input type="number" id="inputBreakMinutes" value="60" step="5" min="0" class="w-full p-2.5 bg-slate-50 dark:bg-slate-700/50 border rounded-xl text-xs text-slate-800 dark:text-slate-100">
-                        </div>
-                        <button onclick="saveSettings()" class="w-full py-2.5 bg-slate-800 dark:bg-slate-700 text-white font-medium rounded-xl text-xs">Save Shift Settings</button>
-                    </div>
+            <!-- Clock History Log -->
+            <div class="bg-white p-5 rounded-xl shadow-sm space-y-4">
+                <h3 class="font-bold text-sm text-slate-700 flex items-center gap-2">
+                    <i class="fa-solid fa-list text-sky-600"></i> Clock History Log
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left">
+                        <thead class="text-slate-400 font-medium border-b border-slate-100">
+                            <tr>
+                                <th class="py-2 px-2">Date</th>
+                                <th class="py-2 px-2">Clock In</th>
+                                <th class="py-2 px-2">Clock Out</th>
+                                <th class="py-2 px-2">Total Worked</th>
+                                <th class="py-2 px-2 text-right">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody" class="divide-y divide-slate-100">
+                            <tr>
+                                <td colspan="5" class="py-4 text-center text-slate-400">No records found.</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-
-                <!-- Clock History Log -->
-                <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/80 shadow-sm self-start">
-                    <div class="flex items-center space-x-2 mb-4">
-                        <i class="fa-solid fa-list-check text-brand-600 dark:text-brand-400"></i>
-                        <h3 class="font-bold text-slate-800 dark:text-slate-100">Clock History Log</h3>
-                    </div>
-
-                    <div id="historyContent" class="pt-3 border-t border-slate-100 dark:border-slate-700 overflow-x-auto">
-                        <table class="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr class="text-slate-400 border-b border-slate-100 dark:border-slate-700 font-medium">
-                                    <th class="py-2.5 px-3">Date</th>
-                                    <th class="py-2.5 px-3">Clock In</th>
-                                    <th class="py-2.5 px-3">Clock Out</th>
-                                    <th class="py-2.5 px-3">Total Worked</th>
-                                    <th class="py-2.5 px-3 text-right">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="historyTableBody" class="divide-y divide-slate-100 dark:divide-slate-700 text-slate-700 dark:text-slate-300 font-mono-num">
-                                <tr><td colspan="5" class="py-4 text-center text-slate-400">No records found.</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-            </div>
-
-        </div>
-    </main>
-
-    <!-- Sync Modal -->
-    <div id="syncModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
-        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-xl w-full p-6 m-4 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
-            <h3 class="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                <i class="fa-solid fa-cloud text-brand-600"></i> Google Sheets Connection
-            </h3>
-            <input type="url" id="inputWebAppUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-3 bg-slate-50 dark:bg-slate-700 border rounded-xl text-xs font-mono-num text-slate-800 dark:text-slate-100">
-            <div class="flex gap-2">
-                <button onclick="saveSyncSettings()" class="flex-1 py-2.5 bg-brand-600 text-white font-semibold rounded-xl text-xs">Save & Connect</button>
-                <button onclick="toggleSyncModal(false)" class="px-4 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium rounded-xl text-xs">Close</button>
             </div>
         </div>
     </div>
 
-    <!-- Main Controller Logic -->
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const reqInput = document.getElementById('inputRequiredHours');
-            const breakInput = document.getElementById('inputBreakMinutes');
-            const urlInput = document.getElementById('inputWebAppUrl');
+        let webAppUrl = localStorage.getItem('webAppUrl') || '';
+        let activeShift = JSON.parse(localStorage.getItem('activeShift')) || null;
 
-            if (reqInput) reqInput.value = requiredHours;
-            if (breakInput) breakInput.value = breakMinutes;
+        document.getElementById('scriptUrlInput').value = webAppUrl;
 
-            const today = new Date().toISOString().split('T')[0];
-            const dateInput = document.getElementById('manualDate');
-            if (dateInput) dateInput.value = today;
+        // Set default manual date input to today
+        const todayStr = new Date().toISOString().split('T')[0];
+        document.getElementById('manualDate').value = todayStr;
 
-            if (webAppUrl) {
-                if (urlInput) urlInput.value = webAppUrl;
-                dismissBanner();
-                updateSyncBadge(true);
-            }
-
-            updateClock();
-            setInterval(updateClock, 1000);
-            renderUI();
-            if (webAppUrl) syncDataFromCloud();
-        });
-
-        function formatDateDisplay(d) {
-            if (!d) return '--';
-            const dateObj = new Date(d);
-            if (isNaN(dateObj.getTime())) return d;
-            return dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        function toggleSettings() {
+            document.getElementById('settingsPanel').classList.toggle('hidden');
         }
 
-        function updateClock() {
-            const now = new Date();
-            const clockEl = document.getElementById('liveClock');
-            const dateEl = document.getElementById('liveDate');
-
-            if (clockEl) clockEl.textContent = now.toLocaleTimeString();
-            if (dateEl) dateEl.textContent = formatDateDisplay(now);
-
-            if (activeShift) updateProgress();
+        function saveScriptUrl() {
+            webAppUrl = document.getElementById('scriptUrlInput').value.trim();
+            localStorage.setItem('webAppUrl', webAppUrl);
+            toggleSettings();
+            syncDataFromCloud();
         }
 
-        function handleClockAction() {
-            const now = new Date();
-            if (!activeShift) {
-                activeShift = { clockInISO: now.toISOString() };
-                localStorage.setItem('activeShift', JSON.stringify(activeShift));
-                sendToCloud({ date: formatDateDisplay(now), clockIn: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), clockOut: '--', totalWorked: '--', status: 'In Progress' });
+        function toggleAdvanced() {
+            const panel = document.getElementById('advancedPanels');
+            const text = document.getElementById('advancedToggleText');
+            const icon = document.getElementById('advancedToggleIcon');
+            panel.classList.toggle('hidden');
+            if (panel.classList.contains('hidden')) {
+                text.textContent = 'Show Advanced Panels';
+                icon.className = 'fa-solid fa-chevron-down';
             } else {
-                const clockInDate = new Date(activeShift.clockInISO);
-                const totalMs = now - clockInDate;
-                const totalMins = Math.floor(totalMs / 60000);
-                const durationStr = `${Math.floor(totalMins/60)}h ${totalMins%60}m`;
-                sendToCloud({ date: formatDateDisplay(now), clockIn: clockInDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), clockOut: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), totalWorked: durationStr, status: 'Completed' });
+                text.textContent = 'Hide Advanced Panels';
+                icon.className = 'fa-solid fa-chevron-up';
+            }
+        }
+
+        // Always converts dates to DD/MM/YYYY for Google Sheets compatibility
+        function formatToDDMMYYYY(dateObjStr) {
+            if (!dateObjStr) return '';
+            if (dateObjStr.includes('/')) return dateObjStr;
+            const parts = dateObjStr.split('-');
+            if (parts.length === 3 && parts[0].length === 4) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            const d = new Date(dateObjStr);
+            if (!isNaN(d.getTime())) {
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                return `${day}/${month}/${d.getFullYear()}`;
+            }
+            return dateObjStr;
+        }
+
+        function formatTime12H(timeStr) {
+            if (!timeStr || timeStr === '--') return '-- : --';
+            if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr;
+            const [h, m] = timeStr.split(':');
+            let hours = parseInt(h, 10);
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            return `${String(hours).padStart(2, '0')}:${m} ${ampm}`;
+        }
+
+        function handleMainAction() {
+            if (!activeShift) {
+                // Clock In Action
+                const now = new Date();
+                const timeStr = formatTime12H(`${now.getHours()}:${now.getMinutes()}`);
+                const dateStr = formatToDDMMYYYY(now.toISOString().split('T')[0]);
+
+                activeShift = { date: dateStr, clockIn: timeStr, clockOut: '--', status: 'In Progress' };
+                localStorage.setItem('activeShift', JSON.stringify(activeShift));
+                
+                sendPayload({ action: 'clockIn', date: dateStr, clockIn: timeStr });
+                updateUI();
+            } else {
+                // Clock Out Action
+                const now = new Date();
+                const timeStr = formatTime12H(`${now.getHours()}:${now.getMinutes()}`);
+                
+                sendPayload({ action: 'clockOut', date: activeShift.date, clockOut: timeStr });
                 activeShift = null;
                 localStorage.removeItem('activeShift');
+                updateUI();
             }
-            renderUI();
         }
 
         function submitManualEntry() {
-            const timeIn = document.getElementById('manualClockIn').value;
-            const timeOut = document.getElementById('manualClockOut').value;
+            const inVal = document.getElementById('manualClockIn').value;
+            const outVal = document.getElementById('manualClockOut').value;
             const dateVal = document.getElementById('manualDate').value;
 
-            if (!timeIn) {
-                alert('Please enter a Clock In time.');
-                return;
-            }
+            if (!dateVal) return;
 
-            const clockInDate = new Date(dateVal + 'T' + timeIn);
+            const formattedDate = formatToDDMMYYYY(dateVal);
+            const formattedIn = inVal ? formatTime12H(inVal) : '--';
+            const formattedOut = outVal ? formatTime12H(outVal) : '--';
 
-            if (timeOut) {
-                const clockOutDate = new Date(dateVal + 'T' + timeOut);
-                const totalMs = clockOutDate - clockInDate;
-                const totalMins = Math.floor(totalMs / 60000);
-                const durationStr = `${Math.floor(totalMins/60)}h ${totalMins%60}m`;
-                
-                sendToCloud({
-                    date: formatDateDisplay(clockInDate),
-                    clockIn: clockInDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
-                    clockOut: clockOutDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
-                    totalWorked: durationStr,
-                    status: 'Completed'
-                });
-                activeShift = null;
-                localStorage.removeItem('activeShift');
-            } else {
-                activeShift = { clockInISO: clockInDate.toISOString() };
+            if (inVal && !outVal) {
+                activeShift = { date: formattedDate, clockIn: formattedIn, clockOut: '--', status: 'In Progress' };
                 localStorage.setItem('activeShift', JSON.stringify(activeShift));
-                sendToCloud({
-                    date: formatDateDisplay(clockInDate),
-                    clockIn: clockInDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
-                    clockOut: '--',
-                    totalWorked: '--',
-                    status: 'In Progress'
-                });
-            }
-
-            renderUI();
-            if (webAppUrl) setTimeout(syncDataFromCloud, 1000);
-        }
-
-        function resetShiftState() {
-            activeShift = null;
-            localStorage.removeItem('activeShift');
-            renderUI();
-        }
-
-        function updateProgress() {
-            if (!activeShift) return;
-            const now = new Date();
-            const clockIn = new Date(activeShift.clockInISO);
-            const totalShiftMs = (requiredHours * 3600 * 1000) + (breakMinutes * 60 * 1000);
-
-            const elapsedMs = Math.max(0, now - clockIn);
-            let pct = Math.min(100, (elapsedMs / totalShiftMs) * 100);
-            const bar = document.getElementById('progressBar');
-            const pctText = document.getElementById('progressPercent');
-            if (bar) bar.style.width = `${pct}%`;
-            if (pctText) pctText.textContent = `${Math.floor(pct)}%`;
-        }
-
-        function renderUI() {
-            const btnText = document.getElementById('btnClockText');
-            const clockInDisp = document.getElementById('clockInDisplay');
-            const targetHomeDisp = document.getElementById('targetHomeDisplay');
-            const statusDot = document.getElementById('statusDot');
-            const statusText = document.getElementById('statusText');
-            const statusBadge = document.getElementById('statusBadge');
-
-            if (activeShift) {
-                const clockIn = new Date(activeShift.clockInISO);
-                const totalShiftMs = (requiredHours * 3600 * 1000) + (breakMinutes * 60 * 1000);
-                const targetHome = new Date(clockIn.getTime() + totalShiftMs);
-
-                if (clockInDisp) clockInDisp.textContent = clockIn.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                if (targetHomeDisp) targetHomeDisp.textContent = targetHome.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                if (btnText) btnText.textContent = "Clock Out Now";
-
-                if (statusDot) statusDot.className = "w-2 h-2 rounded-full bg-emerald-500 mr-2";
-                if (statusText) statusText.textContent = "Shift In Progress";
-                if (statusBadge) statusBadge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800";
+                sendPayload({ action: 'clockIn', date: formattedDate, clockIn: formattedIn });
             } else {
-                if (clockInDisp) clockInDisp.textContent = "--:--";
-                if (targetHomeDisp) targetHomeDisp.textContent = "--:--";
-                if (btnText) btnText.textContent = "Clock In Now";
-
-                if (statusDot) statusDot.className = "w-2 h-2 rounded-full bg-slate-400 mr-2";
-                if (statusText) statusText.textContent = "Not Clocked In";
-                if (statusBadge) statusBadge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300";
+                sendPayload({ action: 'clockOut', date: formattedDate, clockIn: formattedOut });
             }
+            updateUI();
         }
 
-        function saveSyncSettings() {
-            const input = document.getElementById('inputWebAppUrl');
-            if (input) {
-                webAppUrl = input.value.trim();
-                localStorage.setItem('webAppUrl', webAppUrl);
-                toggleSyncModal(false);
-                if (webAppUrl) {
-                    dismissBanner();
-                    updateSyncBadge(true);
-                    syncDataFromCloud();
-                }
-            }
-        }
-
-        function updateSyncBadge(active) {
-            const dot = document.getElementById('syncDot');
-            const text = document.getElementById('syncText');
-            if (dot) dot.className = active ? "w-2 h-2 rounded-full bg-emerald-500" : "w-2 h-2 rounded-full bg-slate-400";
-            if (text) text.textContent = active ? "Synced" : "Local Storage";
-        }
-
-        function sendToCloud(entry) {
+        function sendPayload(payload) {
             if (!webAppUrl) return;
-            fetch(webAppUrl, { method: 'POST', mode: 'no-cors', headers: {'Content-Type':'application/json'}, body: JSON.stringify(entry) });
+            fetch(webAppUrl, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            }).then(() => {
+                setTimeout(syncDataFromCloud, 1000);
+            }).catch(e => console.error(e));
         }
 
         function syncDataFromCloud() {
-    if (!webAppUrl) return;
-    fetch(webAppUrl)
-        .then(r => r.json())
-        .then(data => {
-            const logs = Array.isArray(data) ? data : (data.logs || data.data || []);
-            if (logs.length > 0) {
-                renderHistoryTable(logs);
-            }
-        })
-        .catch(e => console.error(e));
-}
+            if (!webAppUrl) return;
+            fetch(webAppUrl)
+                .then(r => r.json())
+                .then(data => {
+                    const logs = Array.isArray(data) ? data : (data.logs || data.data || []);
+                    if (logs && logs.length > 0) {
+                        renderHistoryTable(logs);
+                    }
+                })
+                .catch(e => console.error(e));
+        }
 
         function renderHistoryTable(rows) {
             const tbody = document.getElementById('historyTableBody');
-            if (!tbody || !rows || rows.length === 0) return;
+            if (!tbody || !rows) return;
             tbody.innerHTML = rows.map(r => `
-                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                    <td class="py-3 px-3 font-medium">${formatDateDisplay(r.date)}</td>
-                    <td class="py-3 px-3 text-emerald-600 font-semibold">${r.clockIn || '--'}</td>
-                    <td class="py-3 px-3 text-rose-600 font-semibold">${r.clockOut || '--'}</td>
-                    <td class="py-3 px-3 font-bold">${r.totalWorked || '--'}</td>
-                    <td class="py-3 px-3 text-right"><span class="px-2 py-0.5 rounded text-[10px] ${r.status === 'In Progress' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'}">${r.status || 'Completed'}</span></td>
+                <tr class="hover:bg-slate-50">
+                    <td class="py-2.5 px-2 font-medium">${r.date}</td>
+                    <td class="py-2.5 px-2 text-emerald-600 font-semibold">${r.clockIn || '--'}</td>
+                    <td class="py-2.5 px-2 text-rose-600 font-semibold">${r.clockOut || '--'}</td>
+                    <td class="py-2.5 px-2 font-bold">${r.totalWorked || '--'}</td>
+                    <td class="py-2.5 px-2 text-right">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${r.status === 'In Progress' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}">
+                            ${r.status}
+                        </span>
+                    </td>
                 </tr>
             `).join('');
         }
 
-        function saveSettings() {
-            const reqInput = document.getElementById('inputRequiredHours');
-            const breakInput = document.getElementById('inputBreakMinutes');
+        function updateUI() {
+            const statusBadge = document.getElementById('statusBadge');
+            const clockInDisplay = document.getElementById('clockInDisplay');
+            const clockOutDisplay = document.getElementById('clockOutDisplay');
+            const btn = document.getElementById('mainActionButton');
 
-            if (reqInput) {
-                requiredHours = parseFloat(reqInput.value) || 9.0;
-                localStorage.setItem('requiredHours', requiredHours);
+            if (activeShift) {
+                statusBadge.textContent = 'Shift In Progress';
+                statusBadge.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700';
+                clockInDisplay.textContent = activeShift.clockIn;
+                clockOutDisplay.textContent = '04:40 PM'; // Target calculated time
+                btn.textContent = 'Clock Out Now';
+                btn.className = 'flex-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3 rounded-xl shadow-sm transition';
+            } else {
+                statusBadge.textContent = 'Not Clocked In';
+                statusBadge.className = 'text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600';
+                clockInDisplay.textContent = '-- : --';
+                clockOutDisplay.textContent = '-- : --';
+                btn.textContent = 'Clock In Now';
+                btn.className = 'flex-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-3 rounded-xl shadow-sm transition';
             }
-            if (breakInput) {
-                breakMinutes = parseInt(breakInput.value) || 60;
-                localStorage.setItem('breakMinutes', breakMinutes);
-            }
-            renderUI();
-            alert('Settings Saved!');
         }
+
+        function resetShift() {
+            activeShift = null;
+            localStorage.removeItem('activeShift');
+            updateUI();
+        }
+
+        // Initial sync on load
+        updateUI();
+        syncDataFromCloud();
     </script>
 </body>
 </html>
