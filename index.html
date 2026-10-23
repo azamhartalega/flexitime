@@ -25,7 +25,7 @@
                 </div>
             </div>
             <div class="flex items-center gap-3">
-                <button onclick="toggleSettings()" class="bg-slate-100 text-xs text-slate-600 px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium hover:bg-slate-200">
+                <button onclick="toggleSettings()" class="bg-slate-100 text-xs text-slate-600 px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium hover:bg-slate-200 cursor-pointer">
                     <span id="syncDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
                     <span id="syncStatus">Synced</span>
                     <i class="fa-solid fa-gear text-slate-400"></i>
@@ -43,7 +43,7 @@
         <div id="settingsPanel" class="hidden bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
             <h3 class="font-semibold text-sm">Google Apps Script Web App URL</h3>
             <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="w-full text-xs p-2 border border-slate-300 rounded-lg">
-            <button onclick="saveScriptUrl()" class="bg-sky-600 text-white text-xs px-4 py-2 rounded-lg font-medium w-full">Save Connection URL</button>
+            <button onclick="saveScriptUrl()" class="bg-sky-600 text-white text-xs px-4 py-2 rounded-lg font-medium w-full cursor-pointer">Save Connection URL</button>
         </div>
 
         <!-- Shift Dashboard -->
@@ -79,13 +79,13 @@
             </div>
 
             <div class="flex gap-2">
-                <button id="mainActionButton" onclick="handleMainAction()" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-3 rounded-xl shadow-sm transition">
+                <button id="mainActionButton" onclick="handleMainAction()" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-semibold py-3 rounded-xl shadow-sm transition cursor-pointer">
                     Clock In Now
                 </button>
-                <button onclick="resetShift()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-3 rounded-xl font-medium text-sm border border-amber-200/50">
+                <button onclick="resetShift()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 px-4 py-3 rounded-xl font-medium text-sm border border-amber-200/50 cursor-pointer">
                     <i class="fa-solid fa-power-off"></i>
                 </button>
-                <button onclick="syncDataFromCloud()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-medium text-sm">
+                <button onclick="syncDataFromCloud()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-3 rounded-xl font-medium text-sm cursor-pointer">
                     <i class="fa-solid fa-rotate"></i>
                 </button>
             </div>
@@ -120,7 +120,7 @@
                         <input type="date" id="manualDate" class="w-full text-xs p-2.5 border border-slate-200 rounded-lg">
                     </div>
                 </div>
-                <button onclick="submitManualEntry()" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2.5 rounded-lg text-xs">
+                <button onclick="submitManualEntry()" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2.5 rounded-lg text-xs cursor-pointer">
                     Set Active Shift / Submit
                 </button>
             </div>
@@ -130,3 +130,40 @@
                 <h3 class="font-bold text-sm text-slate-700 flex items-center gap-2">
                     <i class="fa-solid fa-list text-sky-600"></i> Clock History Log
                 </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs text-left">
+                        <thead class="text-slate-400 font-medium border-b border-slate-100">
+                            <tr>
+                                <th class="py-2 px-2">Date</th>
+                                <th class="py-2 px-2">Clock In</th>
+                                <th class="py-2 px-2">Clock Out</th>
+                                <th class="py-2 px-2">Total Worked</th>
+                                <th class="py-2 px-2 text-right">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody" class="divide-y divide-slate-100">
+                            <tr>
+                                <td colspan="5" class="py-4 text-center text-slate-400">No records found.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        var webAppUrl = localStorage.getItem('webAppUrl') || '';
+        var activeShift = JSON.parse(localStorage.getItem('activeShift')) || null;
+        var reqHours = 8;
+        var breakMins = 60;
+
+        // Failsafe Live Clock
+        function updateLiveClock() {
+            var clockElem = document.getElementById('headerLiveClock');
+            var dateElem = document.getElementById('headerLiveDate');
+            if (!clockElem || !dateElem) return;
+
+            var now = new Date();
+            var hours = String(now.getHours() % 12 ||
