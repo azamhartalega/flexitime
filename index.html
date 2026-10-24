@@ -158,6 +158,44 @@
         var activeShift = JSON.parse(localStorage.getItem('activeShift')) || null;
         var reqHours = 8;
         var breakMins = 60;
+        var pendingWrites = 0;
+        var SYNC_INTERVAL_MS = 30000;
+
+        function pad2(n) {
+            return String(n).padStart(2, '0');
+        }
+
+        // Local (not UTC) date as DD/MM/YYYY
+        function todayDDMMYYYY() {
+            var now = new Date();
+            return pad2(now.getDate()) + '/' + pad2(now.getMonth() + 1) + '/' + now.getFullYear();
+        }
+
+        // Local (not UTC) date as YYYY-MM-DD for <input type="date">
+        function todayISODate() {
+            var now = new Date();
+            return now.getFullYear() + '-' + pad2(now.getMonth() + 1) + '-' + pad2(now.getDate());
+        }
+
+        function nowTime12H() {
+            var now = new Date();
+            return formatTime12H(pad2(now.getHours()) + ':' + pad2(now.getMinutes()));
+        }
+
+        function setSyncStatus(state) {
+            var dot = document.getElementById('syncDot');
+            var label = document.getElementById('syncStatus');
+            if (!dot || !label) return;
+            var map = {
+                synced: ['bg-emerald-500', 'Synced'],
+                syncing: ['bg-amber-400', 'Syncing'],
+                error: ['bg-rose-500', 'Offline'],
+                local: ['bg-slate-400', 'Local only']
+            };
+            var cfg = map[state] || map.synced;
+            dot.className = 'w-2 h-2 rounded-full ' + cfg[0];
+            label.textContent = cfg[1];
+        }
 
         // Failsafe Live Clock
         function updateLiveClock() {
@@ -229,16 +267,19 @@
         function formatTime12H(timeStr) {
             if (!timeStr || timeStr === '--') return '-- : --';
             if (timeStr.indexOf('AM') !== -1 || timeStr.indexOf('PM') !== -1) return timeStr;
-            var parts = timeStr.split(':');
+            var parts = String(timeStr).split(':');
+            if (parts.length < 2) return timeStr;
             var hours = parseInt(parts[0], 10);
+            var minutes = parseInt(parts[1], 10);
+            if (isNaN(hours) || isNaN(minutes)) return timeStr;
             var ampm = hours >= 12 ? 'PM' : 'AM';
             hours = hours % 12 || 12;
-            return String(hours).padStart(2, '0') + ':' + parts[1] + ' ' + ampm;
+            return pad2(hours) + ':' + pad2(minutes) + ' ' + ampm;
         }
 
         function parse12HToMinutes(timeStr) {
             if (!timeStr || timeStr === '-- : --' || timeStr === '--') return null;
-            var match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+            var match = String(timeStr).trim().match(/^(\d{1,2}):(\d{1,2})(?::\d{1,2})?\s*(AM|PM)?$/i);
             if (!match) return null;
             
             var hours = parseInt(match[1], 10);
@@ -275,9 +316,8 @@
 
         function handleMainAction() {
             if (!activeShift) {
-                var now = new Date();
-                var timeStr = formatTime12H(now.getHours() + ':' + now.getMinutes());
-                var dateStr = formatToDDMMYYYY(now.toISOString().split('T')[0]);
+                var timeStr = nowTime12H();
+                var dateStr = todayDDMMYYYY();
 
                 activeShift = { date: dateStr, clockIn: timeStr, clockOut: '--', status: 'In Progress' };
                 localStorage.setItem('activeShift', JSON.stringify(activeShift));
@@ -285,8 +325,7 @@
                 sendPayload({ action: 'clockIn', date: dateStr, clockIn: timeStr });
                 updateUI();
             } else {
-                var now = new Date();
-                var timeStr = formatTime12H(now.getHours() + ':' + now.getMinutes());
+                var timeStr = nowTime12H();
                 var totalWorked = calculateHoursWorked(activeShift.clockIn, timeStr);
 
                 sendPayload({ 
@@ -325,41 +364,97 @@
 
         function sendPayload(payload) {
             if (!webAppUrl) return;
+            pendingWrites++;
+            setSyncStatus('syncing');
             fetch(webAppUrl, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
             }).then(function() {
+                pendingWrites--;
                 setTimeout(syncDataFromCloud, 1000);
-            }).catch(function(e) { console.error(e); });
+            }).catch(function(e) {
+                pendingWrites--;
+                setSyncStatus('error');
+                console.error(e);
+            });
+        }
+
+        function isOpenShift(r) {
+            if (!r) return false;
+            if (r.status) return r.status === 'In Progress';
+            return !!r.clockIn && (!r.clockOut || r.clockOut === '--');
+        }
+
+        // The cloud sheet is the source of truth for whether a shift is running,
+        // so clocking out on one device is reflected on every other device.
+        function reconcileActiveShift(logs) {
+            if (pendingWrites > 0) return;
+            var open = null;
+            for (var i = logs.length - 1; i >= 0; i--) {
+                if (isOpenShift(logs[i])) { open = logs[i]; break; }
+            }
+
+            var dismissed = localStorage.getItem('dismissedShift');
+            if (open && dismissed === formatToDDMMYYYY(String(open.date)) + '|' + formatTime12H(open.clockIn)) {
+                open = null;
+            }
+
+            if (open) {
+                activeShift = {
+                    date: formatToDDMMYYYY(String(open.date)),
+                    clockIn: formatTime12H(open.clockIn),
+                    clockOut: '--',
+                    status: 'In Progress'
+                };
+                localStorage.setItem('activeShift', JSON.stringify(activeShift));
+            } else {
+                activeShift = null;
+                localStorage.removeItem('activeShift');
+            }
+            updateUI();
         }
 
         function syncDataFromCloud() {
-            if (!webAppUrl) return;
-            fetch(webAppUrl)
+            if (!webAppUrl) {
+                setSyncStatus('local');
+                return;
+            }
+            setSyncStatus('syncing');
+            fetch(webAppUrl, { cache: 'no-store' })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     var logs = Array.isArray(data) ? data : (data.logs || data.data || []);
-                    if (logs && logs.length > 0) {
+                    logs = logs || [];
+                    if (logs.length > 0) {
                         renderHistoryTable(logs);
                     }
+                    reconcileActiveShift(logs);
+                    setSyncStatus('synced');
                 })
-                .catch(function(e) { console.error(e); });
+                .catch(function(e) {
+                    setSyncStatus('error');
+                    console.error(e);
+                });
         }
 
         function renderHistoryTable(rows) {
             var tbody = document.getElementById('historyTableBody');
             if (!tbody || !rows) return;
             tbody.innerHTML = rows.map(function(r) {
+                var worked = r.totalWorked;
+                if ((worked === undefined || worked === null || worked === '' || worked === '--') && r.clockIn && r.clockOut) {
+                    worked = calculateHoursWorked(formatTime12H(r.clockIn), formatTime12H(r.clockOut));
+                }
                 return '<tr class="hover:bg-slate-50">' +
                     '<td class="py-2.5 px-2 font-medium">' + r.date + '</td>' +
                     '<td class="py-2.5 px-2 text-emerald-600 font-semibold">' + (r.clockIn || '--') + '</td>' +
                     '<td class="py-2.5 px-2 text-rose-600 font-semibold">' + (r.clockOut || '--') + '</td>' +
-                    '<td class="py-2.5 px-2 font-bold">' + (r.totalWorked || '--') + '</td>' +
+                    '<td class="py-2.5 px-2 font-bold">' + (worked || '--') + '</td>' +
                     '<td class="py-2.5 px-2 text-right">' +
                         '<span class="px-2 py-0.5 rounded text-[10px] font-semibold ' + (r.status === 'In Progress' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700') + '">' +
-                            r.status +
+                            (r.status || (isOpenShift(r) ? 'In Progress' : 'Complete')) +
                         '</span>' +
                     '</td>' +
                 '</tr>';
@@ -416,6 +511,10 @@
         }
 
         function resetShift() {
+            // Remember the discarded shift so the next cloud sync doesn't restore it
+            if (activeShift) {
+                localStorage.setItem('dismissedShift', activeShift.date + '|' + activeShift.clockIn);
+            }
             activeShift = null;
             localStorage.removeItem('activeShift');
             updateUI();
@@ -427,12 +526,22 @@
             if (urlInput) urlInput.value = webAppUrl;
 
             var manualDateInput = document.getElementById('manualDate');
-            if (manualDateInput) manualDateInput.value = new Date().toISOString().split('T')[0];
+            if (manualDateInput) manualDateInput.value = todayISODate();
 
             updateLiveClock();
             setInterval(updateLiveClock, 1000);
+            setInterval(updateUI, 60000);
             updateUI();
             syncDataFromCloud();
+
+            // Keep devices in step: poll, and re-sync whenever the app is reopened
+            setInterval(function() {
+                if (!document.hidden) syncDataFromCloud();
+            }, SYNC_INTERVAL_MS);
+            document.addEventListener('visibilitychange', function() {
+                if (!document.hidden) syncDataFromCloud();
+            });
+            window.addEventListener('focus', syncDataFromCloud);
         };
     </script>
 </body>
